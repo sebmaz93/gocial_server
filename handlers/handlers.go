@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"sync/atomic"
 )
 
@@ -22,8 +23,8 @@ func HandlerValidateChars(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type resBody struct {
-		Error string `json:"error"`
-		Valid bool   `json:"valid"`
+		Error        string `json:"error"`
+		Cleaned_body string `json:"cleaned_body"`
 	}
 
 	data := reqBody{}
@@ -53,11 +54,31 @@ func HandlerValidateChars(w http.ResponseWriter, r *http.Request) {
 		dat, _ := json.Marshal(resData)
 		w.Write(dat)
 	}
+	badWordsMap := map[string]struct{}{
+		"kerfuffle": {},
+		"sharbert":  {},
+		"fornax":    {},
+	}
+
+	cleaned := getCleanedBody(data.Body, badWordsMap)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	resData = resBody{
-		Valid: true,
+		Cleaned_body: cleaned,
 	}
 	dat, _ := json.Marshal(resData)
 	w.Write(dat)
+}
+
+func getCleanedBody(body string, badWords map[string]struct{}) string {
+	words := strings.Split(body, " ")
+	for i, word := range words {
+		loweredWord := strings.ToLower(word)
+		if _, ok := badWords[loweredWord]; ok {
+			words[i] = "****"
+		}
+	}
+	cleaned := strings.Join(words, " ")
+	return cleaned
 }
