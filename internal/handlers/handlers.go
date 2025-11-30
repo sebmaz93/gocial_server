@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/sebmaz93/gocial_server/internal/database"
+	res "github.com/sebmaz93/gocial_server/internal/response"
 )
 
 type ApiConfig struct {
@@ -27,52 +28,33 @@ func HandlerValidateChars(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type resBody struct {
-		Error        string `json:"error"`
-		Cleaned_body string `json:"cleaned_body"`
+		CleanedBody string `json:"cleaned_body"`
 	}
 
 	data := reqBody{}
-	resData := resBody{}
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
 	err := decoder.Decode(&data)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(500)
-		resData = resBody{
-			Error: err.Error(),
-		}
-		dat, err := json.Marshal(resData)
-		if err != nil {
-			return
-		}
-		w.Write(dat)
+		res.RespondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
 		return
 	}
+
 	if len(data.Body) > 140 {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(400)
-		resData = resBody{
-			Error: "Chirp is too long",
-		}
-		dat, _ := json.Marshal(resData)
-		w.Write(dat)
+		res.RespondWithError(w, http.StatusBadRequest, "Chirp is too long", nil)
+		return
 	}
+
 	badWordsMap := map[string]struct{}{
 		"kerfuffle": {},
 		"sharbert":  {},
 		"fornax":    {},
 	}
-
 	cleaned := getCleanedBody(data.Body, badWordsMap)
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	resData = resBody{
-		Cleaned_body: cleaned,
-	}
-	dat, _ := json.Marshal(resData)
-	w.Write(dat)
+	res.RespondWithJSON(w, http.StatusOK, resBody{
+		CleanedBody: cleaned,
+	})
 }
 
 func getCleanedBody(body string, badWords map[string]struct{}) string {

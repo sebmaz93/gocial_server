@@ -26,23 +26,23 @@ func (cfg *ApiConfig) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 func (cfg *ApiConfig) HandleResetMetrics(w http.ResponseWriter, r *http.Request) {
 	if cfg.ENV != "dev" {
 		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte("Reset not allowed outside dev environment."))
 		return
 	}
 	cfg.FileserverHits.Store(0)
-	err := cfg.DB.DeleteAllUsers(context.Background())
+	err := cfg.DB.Reset(context.Background())
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Error resetting"))
+		w.Write([]byte("Failed to reset the database: " + err.Error()))
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Hits reset to 0"))
+	w.Write([]byte("Hits reset to 0 and database reset to initial state."))
 }
 
 func (cfg *ApiConfig) MiddlewareMetricsInc(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cfg.FileserverHits.Add(1)
-
 		next.ServeHTTP(w, r)
 	})
 }
