@@ -18,7 +18,7 @@ type Chirp struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Body      string    `json:"body"`
-	UserId    uuid.UUID `json:"user_id"`
+	UserID    uuid.UUID `json:"user_id"`
 }
 
 func (cfg *ApiConfig) HandleCreateChirp(w http.ResponseWriter, r *http.Request) {
@@ -59,7 +59,7 @@ func (cfg *ApiConfig) HandleCreateChirp(w http.ResponseWriter, r *http.Request) 
 			CreatedAt: chirp.CreatedAt,
 			UpdatedAt: chirp.UpdatedAt,
 			Body:      chirp.Body,
-			UserId:    chirp.UserID,
+			UserID:    chirp.UserID,
 		},
 	})
 }
@@ -89,4 +89,51 @@ func getCleanedBody(body string, badWords map[string]struct{}) string {
 	}
 	cleaned := strings.Join(words, " ")
 	return cleaned
+}
+
+func (cfg *ApiConfig) HandleGetAllChirps(w http.ResponseWriter, r *http.Request) {
+	dbChirps, err := cfg.DB.GetAllChirps(context.Background())
+	if err != nil {
+		res.RespondWithError(w, http.StatusInternalServerError, "Error fetching chirps", err)
+		return
+	}
+	chirps := []Chirp{}
+	for _, dbChirp := range dbChirps {
+		chirps = append(chirps, Chirp{
+			ID:        dbChirp.ID,
+			CreatedAt: dbChirp.CreatedAt,
+			UpdatedAt: dbChirp.UpdatedAt,
+			UserID:    dbChirp.UserID,
+			Body:      dbChirp.Body,
+		})
+	}
+	res.RespondWithJSON(w, http.StatusOK, chirps)
+}
+
+func (cfg *ApiConfig) HandleGetChirpByID(w http.ResponseWriter, r *http.Request) {
+	chirpID := r.PathValue("chirpID")
+	if chirpID == "" {
+		res.RespondWithError(w, http.StatusBadRequest, "Chirp ID missing", nil)
+		return
+	}
+
+	parsedChirpID, err := uuid.Parse(chirpID)
+	if err != nil {
+		res.RespondWithError(w, http.StatusBadRequest, "Invalid chirp ID", err)
+		return
+	}
+
+	chirp, err := cfg.DB.GetChirpByID(context.Background(), parsedChirpID)
+	if err != nil {
+		res.RespondWithError(w, http.StatusNotFound, "Error fetching Chirp", err)
+		return
+	}
+
+	res.RespondWithJSON(w, http.StatusOK, Chirp{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
+	})
 }
