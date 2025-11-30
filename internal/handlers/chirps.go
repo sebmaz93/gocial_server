@@ -1,0 +1,92 @@
+package handlers
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/sebmaz93/gocial_server/internal/database"
+	res "github.com/sebmaz93/gocial_server/internal/response"
+)
+
+type Chirp struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserId    uuid.UUID `json:"user_id"`
+}
+
+func (cfg *ApiConfig) HandleCreateChirp(w http.ResponseWriter, r *http.Request) {
+	type reqBody struct {
+		Body   string    `json:"body"`
+		UserId uuid.UUID `json:"user_id"`
+	}
+
+	type resBody struct {
+		Chirp
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	requestBody := reqBody{}
+	defer r.Body.Close()
+	err := decoder.Decode(&requestBody)
+	if err != nil {
+		res.RespondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+		return
+	}
+
+	cleaned, err := validateChirp(requestBody.Body)
+	if err != nil {
+		res.RespondWithError(w, http.StatusBadRequest, err.Error(), err)
+		return
+	}
+
+	chirp, err := cfg.DB.CreateChirp(context.Background(), database.CreateChirpParams{
+		Body:   cleaned,
+		UserID: requestBody.UserId,
+	})
+	if err != nil {
+		res.RespondWithError(w, http.StatusInternalServerError, "Error creating chirp", err)
+	}
+	res.RespondWithJSON(w, http.StatusCreated, resBody{
+		Chirp: Chirp{
+			ID:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			Body:      chirp.Body,
+			UserId:    chirp.UserID,
+		},
+	})
+}
+
+func validateChirp(body string) (string, error) {
+	const maxChirpLength = 140
+	if len(body) > maxChirpLength {
+		return "", errors.New("Chirp is too long")
+	}
+
+	badWords := map[string]struct{}{
+		"kerfuffle": {},
+		"sharbert":  {},
+		"fornax":    {},
+	}
+	cleaned := getCleanedBody(body, badWords)
+	return cleaned, nil
+}
+
+func getCleanedBody(body string, badWords map[string]struct{}) string {
+	words := strings.Split(body, " ")
+	for i, word := range words {
+		loweredWord := strings.ToLower(word)
+		if _, ok := badWords[loweredWord]; ok {
+			words[i] = "****"
+		}
+	}
+	cleaned := strings.Join(words, " ")
+	return cleaned
+}
