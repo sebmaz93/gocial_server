@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sebmaz93/gocial_server/internal/auth"
+	"github.com/sebmaz93/gocial_server/internal/database"
 	res "github.com/sebmaz93/gocial_server/internal/response"
 )
 
@@ -19,7 +21,8 @@ type User struct {
 
 func (cfg *ApiConfig) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email string `json:"email"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 	type responseBody struct {
 		User
@@ -34,7 +37,15 @@ func (cfg *ApiConfig) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := cfg.DB.CreateUser(context.Background(), params.Email)
+	hashedPass, err := auth.HashPassword(params.Password)
+	if err != nil {
+		res.RespondWithError(w, http.StatusInternalServerError, "Error creating user", err)
+		return
+	}
+	user, err := cfg.DB.CreateUser(context.Background(), database.CreateUserParams{
+		Email:          params.Email,
+		HashedPassword: hashedPass,
+	})
 	if err != nil {
 		res.RespondWithError(w, http.StatusInternalServerError, "Error creating user", err)
 		return
@@ -49,4 +60,39 @@ func (cfg *ApiConfig) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 
+}
+
+func (cfg *ApiConfig) HandleLogin(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	defer r.Body.Close()
+	err := decoder.Decode(&params)
+	if err != nil {
+		res.RespondWithError(w, http.StatusInternalServerError, "Error decoding parameters", err)
+		return
+	}
+
+	dbUser, err := cfg.DB.GetUserByEmail(context.Background(), params.Email)
+	if err != nil {
+		res.RespondWithError(w, http.StatusUnauthorized, "Incorrect email or password", err)
+		return
+	}
+
+	ok, err := auth.CheckPasswordHash(params.Password, dbUser.HashedPassword)
+	if err != nil || !ok {
+		res.RespondWithError(w, http.StatusUnauthorized, "Incorrect email or password", nil)
+		return
+	}
+
+	res.RespondWithJSON(w, http.StatusOK, User{
+		ID:        dbUser.ID,
+		CreatedAt: dbUser.CreatedAt,
+		UpdatedAt: dbUser.UpdatedAt,
+		Email:     dbUser.Email,
+	})
 }
