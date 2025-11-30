@@ -3,48 +3,50 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
+	res "github.com/sebmaz93/gocial_server/internal/response"
 )
 
+type User struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
+}
+
 func (cfg *ApiConfig) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
-	type requestBody struct {
+	type parameters struct {
 		Email string `json:"email"`
 	}
-
 	type responseBody struct {
-		Id         uuid.UUID `json:"id"`
-		Created_at time.Time `json:"created_at"`
-		Updated_at time.Time `json:"updated_at"`
-		Email      string    `json:"email"`
+		User
 	}
 
-	reqBody := requestBody{}
 	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
 	defer r.Body.Close()
-	err := decoder.Decode(&reqBody)
+	err := decoder.Decode(&params)
 	if err != nil {
-		fmt.Errorf("error decoding")
+		res.RespondWithError(w, http.StatusInternalServerError, "Error decoding parameters", err)
 		return
 	}
 
-	user, err := cfg.DB.CreateUser(context.Background(), reqBody.Email)
+	user, err := cfg.DB.CreateUser(context.Background(), params.Email)
 	if err != nil {
-		fmt.Errorf("error creating user")
+		res.RespondWithError(w, http.StatusInternalServerError, "Error creating user", err)
+		return
 	}
 
-	resBody := responseBody{
-		Id:         user.ID,
-		Created_at: user.CreatedAt.Time,
-		Updated_at: user.UpdatedAt.Time,
-		Email:      user.Email,
-	}
-	dat, _ := json.Marshal(resBody)
+	res.RespondWithJSON(w, http.StatusCreated, responseBody{
+		User: User{
+			ID:        user.ID,
+			CreatedAt: user.CreatedAt,
+			UpdatedAt: user.UpdatedAt,
+			Email:     user.Email,
+		},
+	})
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	w.Write(dat)
 }

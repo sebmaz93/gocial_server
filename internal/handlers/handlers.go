@@ -12,6 +12,7 @@ import (
 type ApiConfig struct {
 	FileserverHits atomic.Int32
 	DB             *database.Queries
+	ENV            string
 }
 
 func HandlerHealth(w http.ResponseWriter, r *http.Request) {

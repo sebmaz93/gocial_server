@@ -22,12 +22,19 @@ func main() {
 	const port = "8080"
 	const rootPath = "."
 	dbURL := os.Getenv("DB_URL")
+	if dbURL == "" {
+		log.Fatal("DB_URL variable must be set")
+	}
 	db, err := sql.Open("postgres", dbURL)
 	dbQueries := database.New(db)
-
+	ENV := os.Getenv("ENV")
+	if ENV == "" {
+		log.Fatal("ENV variable must be set")
+	}
 	apiCfg := handlers.ApiConfig{
 		FileserverHits: atomic.Int32{},
 		DB:             dbQueries,
+		ENV:            ENV,
 	}
 
 	dir := http.Dir(rootPath)

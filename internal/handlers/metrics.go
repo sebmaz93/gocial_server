@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 )
 
 func (cfg *ApiConfig) HandleMetrics(w http.ResponseWriter, r *http.Request) {
@@ -25,8 +24,7 @@ func (cfg *ApiConfig) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *ApiConfig) HandleResetMetrics(w http.ResponseWriter, r *http.Request) {
-	ENV := os.Getenv("ENV")
-	if ENV != "dev" {
+	if cfg.ENV != "dev" {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
