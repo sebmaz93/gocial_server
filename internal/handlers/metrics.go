@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"os"
 )
 
 func (cfg *ApiConfig) HandleMetrics(w http.ResponseWriter, r *http.Request) {
@@ -23,7 +25,18 @@ func (cfg *ApiConfig) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *ApiConfig) HandleResetMetrics(w http.ResponseWriter, r *http.Request) {
+	ENV := os.Getenv("ENV")
+	if ENV != "dev" {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 	cfg.FileserverHits.Store(0)
+	err := cfg.DB.DeleteAllUsers(context.Background())
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Error resetting"))
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Hits reset to 0"))
 }

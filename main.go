@@ -39,6 +39,7 @@ func main() {
 	mux.HandleFunc("POST /admin/reset", apiCfg.HandleResetMetrics)
 	mux.HandleFunc("GET /api/healthz", handlers.HandlerHealth)
 	mux.HandleFunc("POST /api/validate_chirp", handlers.HandlerValidateChars)
+	mux.HandleFunc("POST /api/users", apiCfg.HandleCreateUser)
 
 	server := &http.Server{
 		Handler: mux,
