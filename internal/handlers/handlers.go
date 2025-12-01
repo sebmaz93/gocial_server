@@ -11,6 +11,7 @@ type ApiConfig struct {
 	FileserverHits atomic.Int32
 	DB             *database.Queries
 	ENV            string
+	JWTSecret      string
 }
 
 func HandlerHealth(w http.ResponseWriter, r *http.Request) {

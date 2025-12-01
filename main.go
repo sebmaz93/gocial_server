@@ -31,10 +31,15 @@ func main() {
 	if ENV == "" {
 		log.Fatal("ENV variable must be set")
 	}
+	JWTSecret := os.Getenv("JWT_SECRET")
+	if JWTSecret == "" {
+		log.Fatal("JWT_SECRET variable must be set")
+	}
 	apiCfg := handlers.ApiConfig{
 		FileserverHits: atomic.Int32{},
 		DB:             dbQueries,
 		ENV:            ENV,
+		JWTSecret:      JWTSecret,
 	}
 
 	dir := http.Dir(rootPath)

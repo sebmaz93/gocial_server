@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sebmaz93/gocial_server/internal/auth"
 	"github.com/sebmaz93/gocial_server/internal/database"
 	res "github.com/sebmaz93/gocial_server/internal/response"
 )
@@ -23,8 +24,7 @@ type Chirp struct {
 
 func (cfg *ApiConfig) HandleCreateChirp(w http.ResponseWriter, r *http.Request) {
 	type reqBody struct {
-		Body   string    `json:"body"`
-		UserId uuid.UUID `json:"user_id"`
+		Body string `json:"body"`
 	}
 
 	type resBody struct {
@@ -42,13 +42,25 @@ func (cfg *ApiConfig) HandleCreateChirp(w http.ResponseWriter, r *http.Request) 
 
 	cleaned, err := validateChirp(requestBody.Body)
 	if err != nil {
-		res.RespondWithError(w, http.StatusBadRequest, err.Error(), err)
+		res.RespondWithError(w, http.StatusBadRequest, "error sanitizng chirp", err)
+		return
+	}
+
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		res.RespondWithError(w, http.StatusBadRequest, "error getting auth header", err)
+		return
+	}
+
+	userId, err := auth.ValidateJWT(token, cfg.JWTSecret)
+	if err != nil {
+		res.RespondWithError(w, http.StatusBadRequest, "error validating token", err)
 		return
 	}
 
 	chirp, err := cfg.DB.CreateChirp(context.Background(), database.CreateChirpParams{
 		Body:   cleaned,
-		UserID: requestBody.UserId,
+		UserID: userId,
 	})
 	if err != nil {
 		res.RespondWithError(w, http.StatusInternalServerError, "Error creating chirp", err)
