@@ -72,6 +72,12 @@ func (cfg *ApiConfig) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		ExpiresIn *int   `json:"expires_in_seconds"`
 	}
 
+	type response struct {
+		User
+		Token        string `json:"token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	defer r.Body.Close()
@@ -95,7 +101,7 @@ func (cfg *ApiConfig) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	expireTime := defaultExpiresIn
 	if params.ExpiresIn != nil && time.Duration(*params.ExpiresIn) < defaultExpiresIn {
 		if *params.ExpiresIn > 0 {
-			expireTime = time.Duration(*params.ExpiresIn)
+			expireTime = time.Duration(*params.ExpiresIn) * time.Second
 		}
 	}
 	token, err := auth.MakeJWT(dbUser.ID, cfg.JWTSecret, expireTime)
@@ -104,11 +110,13 @@ func (cfg *ApiConfig) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res.RespondWithJSON(w, http.StatusOK, User{
-		ID:        dbUser.ID,
-		CreatedAt: dbUser.CreatedAt,
-		UpdatedAt: dbUser.UpdatedAt,
-		Email:     dbUser.Email,
-		Token:     token,
+	res.RespondWithJSON(w, http.StatusOK, response{
+		User: User{
+			ID:        dbUser.ID,
+			CreatedAt: dbUser.CreatedAt,
+			UpdatedAt: dbUser.UpdatedAt,
+			Email:     dbUser.Email,
+		},
+		Token: token,
 	})
 }

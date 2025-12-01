@@ -87,8 +87,8 @@ func GetBearerToken(headers http.Header) (string, error) {
 		return "", errors.New("Authorization header is missing")
 	}
 	authSlice := strings.Fields(authHeader)
-	if len(authSlice) != 2 {
-		return "", errors.New("Bearer Token is missing")
+	if len(authSlice) != 2 || authSlice[0] != "Bearer" {
+		return "", errors.New("malformed auth header")
 	}
 
 	tokenString := authSlice[1]

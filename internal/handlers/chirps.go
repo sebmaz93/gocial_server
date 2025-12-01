@@ -27,14 +27,22 @@ func (cfg *ApiConfig) HandleCreateChirp(w http.ResponseWriter, r *http.Request) 
 		Body string `json:"body"`
 	}
 
-	type resBody struct {
-		Chirp
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		res.RespondWithError(w, http.StatusUnauthorized, "error getting JWT", err)
+		return
+	}
+
+	userId, err := auth.ValidateJWT(token, cfg.JWTSecret)
+	if err != nil {
+		res.RespondWithError(w, http.StatusUnauthorized, "error validating token", err)
+		return
 	}
 
 	decoder := json.NewDecoder(r.Body)
 	requestBody := reqBody{}
 	defer r.Body.Close()
-	err := decoder.Decode(&requestBody)
+	err = decoder.Decode(&requestBody)
 	if err != nil {
 		res.RespondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
 		return
@@ -46,18 +54,6 @@ func (cfg *ApiConfig) HandleCreateChirp(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	token, err := auth.GetBearerToken(r.Header)
-	if err != nil {
-		res.RespondWithError(w, http.StatusBadRequest, "error getting auth header", err)
-		return
-	}
-
-	userId, err := auth.ValidateJWT(token, cfg.JWTSecret)
-	if err != nil {
-		res.RespondWithError(w, http.StatusBadRequest, "error validating token", err)
-		return
-	}
-
 	chirp, err := cfg.DB.CreateChirp(context.Background(), database.CreateChirpParams{
 		Body:   cleaned,
 		UserID: userId,
@@ -65,14 +61,12 @@ func (cfg *ApiConfig) HandleCreateChirp(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		res.RespondWithError(w, http.StatusInternalServerError, "Error creating chirp", err)
 	}
-	res.RespondWithJSON(w, http.StatusCreated, resBody{
-		Chirp: Chirp{
-			ID:        chirp.ID,
-			CreatedAt: chirp.CreatedAt,
-			UpdatedAt: chirp.UpdatedAt,
-			Body:      chirp.Body,
-			UserID:    chirp.UserID,
-		},
+	res.RespondWithJSON(w, http.StatusCreated, Chirp{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
 	})
 }
 
