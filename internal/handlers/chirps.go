@@ -98,11 +98,28 @@ func getCleanedBody(body string, badWords map[string]struct{}) string {
 }
 
 func (cfg *ApiConfig) HandleGetAllChirps(w http.ResponseWriter, r *http.Request) {
-	dbChirps, err := cfg.DB.GetAllChirps(context.Background())
-	if err != nil {
-		res.RespondWithError(w, http.StatusInternalServerError, "Error fetching chirps", err)
-		return
+	authorID := r.URL.Query().Get("author_id")
+	var dbChirps []database.Chirp
+	var err error
+	if authorID != "" {
+		parsedID, err := uuid.Parse(authorID)
+		if err != nil {
+			res.RespondWithError(w, http.StatusInternalServerError, "malformed user id", err)
+			return
+		}
+		dbChirps, err = cfg.DB.GetChirpsByAuthorID(context.Background(), parsedID)
+		if err != nil {
+			res.RespondWithError(w, http.StatusInternalServerError, "Error fetching chirps", err)
+			return
+		}
+	} else {
+		dbChirps, err = cfg.DB.GetAllChirps(context.Background())
+		if err != nil {
+			res.RespondWithError(w, http.StatusInternalServerError, "Error fetching chirps", err)
+			return
+		}
 	}
+
 	chirps := []Chirp{}
 	for _, dbChirp := range dbChirps {
 		chirps = append(chirps, Chirp{
@@ -142,4 +159,49 @@ func (cfg *ApiConfig) HandleGetChirpByID(w http.ResponseWriter, r *http.Request)
 		Body:      chirp.Body,
 		UserID:    chirp.UserID,
 	})
+}
+
+func (cfg *ApiConfig) HandleDeleteChirpByID(w http.ResponseWriter, r *http.Request) {
+	chirpID := r.PathValue("chirpID")
+	if chirpID == "" {
+		res.RespondWithError(w, http.StatusBadRequest, "Chirp ID missing", nil)
+		return
+	}
+
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		res.RespondWithError(w, http.StatusUnauthorized, "Error reading JWT", err)
+		return
+	}
+
+	parsedChirpID, err := uuid.Parse(chirpID)
+	if err != nil {
+		res.RespondWithError(w, http.StatusBadRequest, "Invalid chirp ID", err)
+		return
+	}
+
+	userID, err := auth.ValidateJWT(token, cfg.JWTSecret)
+	if err != nil {
+		res.RespondWithError(w, http.StatusUnauthorized, "Error validating JWT", err)
+		return
+	}
+
+	chirp, err := cfg.DB.GetChirpByID(context.Background(), parsedChirpID)
+	if err != nil {
+		res.RespondWithError(w, http.StatusNotFound, "Error fetching Chirp", err)
+		return
+	}
+
+	if chirp.UserID != userID {
+		res.RespondWithError(w, http.StatusForbidden, "You can't delete this Chirp", err)
+		return
+	}
+
+	err = cfg.DB.DeleteChirpById(context.Background(), chirp.ID)
+	if err != nil {
+		res.RespondWithError(w, http.StatusInternalServerError, "Error deleting Chirp", err)
+		return
+	}
+
+	res.RespondWithJSON(w, http.StatusNoContent, nil)
 }

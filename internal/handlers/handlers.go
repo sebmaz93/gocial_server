@@ -12,6 +12,7 @@ type ApiConfig struct {
 	DB             *database.Queries
 	ENV            string
 	JWTSecret      string
+	POLKA          string
 }
 
 func HandlerHealth(w http.ResponseWriter, r *http.Request) {

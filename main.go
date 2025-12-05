@@ -35,11 +35,16 @@ func main() {
 	if JWTSecret == "" {
 		log.Fatal("JWT_SECRET variable must be set")
 	}
+	PolkaKey := os.Getenv("POLKA_KEY")
+	if PolkaKey == "" {
+		log.Fatal("POLKA_KEY variable must be set")
+	}
 	apiCfg := handlers.ApiConfig{
 		FileserverHits: atomic.Int32{},
 		DB:             dbQueries,
 		ENV:            ENV,
 		JWTSecret:      JWTSecret,
+		POLKA:          PolkaKey,
 	}
 
 	dir := http.Dir(rootPath)
@@ -54,10 +59,13 @@ func main() {
 	mux.HandleFunc("POST /api/login", apiCfg.HandleLogin)
 	mux.HandleFunc("POST /api/chirps", apiCfg.HandleCreateChirp)
 	mux.HandleFunc("GET /api/chirps", apiCfg.HandleGetAllChirps)
+	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.HandleDeleteChirpByID)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.HandleGetChirpByID)
 	mux.HandleFunc("POST /api/refresh", apiCfg.HandleRefreshToken)
 	mux.HandleFunc("POST /api/revoke", apiCfg.HandleRevokeToken)
 	mux.HandleFunc("PUT /api/users", apiCfg.HandleUpdateUser)
+	// Webhook
+	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.HandlePolkaHook)
 
 	server := &http.Server{
 		Handler: mux,

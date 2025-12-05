@@ -13,11 +13,12 @@ import (
 )
 
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-	Token     string    `json:"token"`
+	ID         uuid.UUID `json:"id"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+	Email      string    `json:"email"`
+	Token      string    `json:"token"`
+	IsChirpRed bool      `json:"is_chirpy_red"`
 }
 
 const defaultExpiresIn = time.Hour * 1
@@ -56,10 +57,11 @@ func (cfg *ApiConfig) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
 
 	res.RespondWithJSON(w, http.StatusCreated, responseBody{
 		User: User{
-			ID:        user.ID,
-			CreatedAt: user.CreatedAt,
-			UpdatedAt: user.UpdatedAt,
-			Email:     user.Email,
+			ID:         user.ID,
+			CreatedAt:  user.CreatedAt,
+			UpdatedAt:  user.UpdatedAt,
+			Email:      user.Email,
+			IsChirpRed: user.IsChirpyRed,
 		},
 	})
 }
@@ -115,10 +117,11 @@ func (cfg *ApiConfig) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 	res.RespondWithJSON(w, http.StatusOK, response{
 		User: User{
-			ID:        dbUser.ID,
-			CreatedAt: dbUser.CreatedAt,
-			UpdatedAt: dbUser.UpdatedAt,
-			Email:     dbUser.Email,
+			ID:         dbUser.ID,
+			CreatedAt:  dbUser.CreatedAt,
+			UpdatedAt:  dbUser.UpdatedAt,
+			Email:      dbUser.Email,
+			IsChirpRed: dbUser.IsChirpyRed,
 		},
 		Token:        token,
 		RefreshToken: refreshToken,
@@ -225,4 +228,45 @@ func (cfg *ApiConfig) HandleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	res.RespondWithJSON(w, http.StatusOK, response{
 		Email: updatedUser.Email,
 	})
+}
+
+func (cfg *ApiConfig) HandlePolkaHook(w http.ResponseWriter, r *http.Request) {
+	apiKey, err := auth.GetAPIKey(r.Header)
+	if err != nil || apiKey != cfg.POLKA {
+		res.RespondWithError(w, http.StatusUnauthorized, "Apikey error", err)
+		return
+	}
+
+	type tRequestBody struct {
+		Event string `json:"event"`
+		Data  struct {
+			UserID string `json:"user_id"`
+		} `json:"data"`
+	}
+
+	requestBody := tRequestBody{}
+	decoder := json.NewDecoder(r.Body)
+	defer r.Body.Close()
+	err = decoder.Decode(&requestBody)
+	if err != nil {
+		res.RespondWithError(w, http.StatusInternalServerError, "Error decoding parameters", err)
+		return
+	}
+
+	if requestBody.Event != "user.upgraded" {
+		res.RespondWithJSON(w, http.StatusNoContent, nil)
+		return
+	}
+
+	parsedUserID, err := uuid.Parse(requestBody.Data.UserID)
+	if err != nil {
+		res.RespondWithError(w, http.StatusBadRequest, "Invalid user ID", err)
+		return
+	}
+	_, err = cfg.DB.UpgradeUserToRed(context.Background(), parsedUserID)
+	if err != nil {
+		res.RespondWithError(w, http.StatusNotFound, "Error updating user info", err)
+		return
+	}
+	res.RespondWithJSON(w, http.StatusNoContent, nil)
 }
