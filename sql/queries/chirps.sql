@@ -5,7 +5,9 @@ RETURNING *;
 
 -- name: GetAllChirps :many
 SELECT * FROM chirps
-ORDER BY created_at ASC;
+ORDER BY
+    CASE WHEN COALESCE($1, 'asc') = 'desc' THEN created_at END DESC,
+    CASE WHEN COALESCE($1, 'asc') = 'asc' THEN created_at END ASC;
 
 -- name: GetChirpByID :one
 SELECT * FROM chirps
@@ -18,4 +20,6 @@ WHERE id = $1;
 -- name: GetChirpsByAuthorID :many
 SELECT * FROM chirps
 WHERE user_id = $1
-ORDER BY created_at ASC;
+ORDER BY
+    CASE WHEN COALESCE($2, 'asc') = 'desc' THEN created_at END DESC,
+    CASE WHEN COALESCE($2, 'asc') = 'asc' THEN created_at END ASC;

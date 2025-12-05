@@ -99,6 +99,11 @@ func getCleanedBody(body string, badWords map[string]struct{}) string {
 
 func (cfg *ApiConfig) HandleGetAllChirps(w http.ResponseWriter, r *http.Request) {
 	authorID := r.URL.Query().Get("author_id")
+	sortQuery := r.URL.Query().Get("sort")
+	sortOrder := "asc"
+	if sortQuery == "desc" {
+		sortOrder = "desc"
+	}
 	var dbChirps []database.Chirp
 	var err error
 	if authorID != "" {
@@ -107,13 +112,16 @@ func (cfg *ApiConfig) HandleGetAllChirps(w http.ResponseWriter, r *http.Request)
 			res.RespondWithError(w, http.StatusInternalServerError, "malformed user id", err)
 			return
 		}
-		dbChirps, err = cfg.DB.GetChirpsByAuthorID(context.Background(), parsedID)
+		dbChirps, err = cfg.DB.GetChirpsByAuthorID(context.Background(), database.GetChirpsByAuthorIDParams{
+			UserID:  parsedID,
+			Column2: sortOrder,
+		})
 		if err != nil {
 			res.RespondWithError(w, http.StatusInternalServerError, "Error fetching chirps", err)
 			return
 		}
 	} else {
-		dbChirps, err = cfg.DB.GetAllChirps(context.Background())
+		dbChirps, err = cfg.DB.GetAllChirps(context.Background(), sortOrder)
 		if err != nil {
 			res.RespondWithError(w, http.StatusInternalServerError, "Error fetching chirps", err)
 			return
