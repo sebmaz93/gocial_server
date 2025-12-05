@@ -175,3 +175,54 @@ func (cfg *ApiConfig) HandleRevokeToken(w http.ResponseWriter, r *http.Request) 
 	}
 	res.RespondWithJSON(w, http.StatusNoContent, nil)
 }
+
+func (cfg *ApiConfig) HandleUpdateUser(w http.ResponseWriter, r *http.Request) {
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		res.RespondWithError(w, http.StatusUnauthorized, "Error reading JWT", err)
+		return
+	}
+
+	uuid, err := auth.ValidateJWT(token, cfg.JWTSecret)
+	if err != nil {
+		res.RespondWithError(w, http.StatusUnauthorized, "Error validating JWT", err)
+		return
+	}
+
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	params := parameters{}
+	decoder := json.NewDecoder(r.Body)
+	defer r.Body.Close()
+	err = decoder.Decode(&params)
+	if err != nil {
+		res.RespondWithError(w, http.StatusInternalServerError, "Error decoding parameters", err)
+		return
+	}
+
+	hashedPassword, err := auth.HashPassword(params.Password)
+	if err != nil {
+		res.RespondWithError(w, http.StatusInternalServerError, "Hashing password error", err)
+		return
+	}
+
+	updatedUser, err := cfg.DB.UpdateUser(context.Background(), database.UpdateUserParams{
+		ID:             uuid,
+		Email:          params.Email,
+		HashedPassword: hashedPassword,
+	})
+	if err != nil {
+		res.RespondWithError(w, http.StatusInternalServerError, "Error updating user info", err)
+		return
+	}
+	type response struct {
+		Email string `json:"email"`
+	}
+
+	res.RespondWithJSON(w, http.StatusOK, response{
+		Email: updatedUser.Email,
+	})
+}
